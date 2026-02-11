@@ -23,7 +23,44 @@ class _CounterViewState extends State<CounterView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("LogBook: Versi SRP")),
+      appBar: AppBar(
+        title: const Text("LogBook: Versi SRP"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("Konfirmasi Reset"),
+                  content: const Text("Apakah Anda yakin ingin mereset hitungan dan log?"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text("Batal"),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _controller.reset();
+                        });
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Hitungan dan log telah direset."),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      child: const Text("Ya"),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -37,7 +74,7 @@ class _CounterViewState extends State<CounterView> {
               value: _controller.step.toDouble(),
               min: 1,
               max: 5,
-              divisions: 9,
+              divisions: 4,
               label: "${_controller.step}",
               onChanged: (double value) {
                 setState(() {
@@ -82,7 +119,7 @@ class _CounterViewState extends State<CounterView> {
             onPressed: () => setState(() => _controller.decrement()),
             child: const Icon(Icons.remove),
           ),
-          
+
           const SizedBox(width: 10),
           
           FloatingActionButton(
