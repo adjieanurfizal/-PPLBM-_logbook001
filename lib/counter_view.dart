@@ -75,10 +75,22 @@ class _CounterViewState extends State<CounterView> {
         ),
       ),
 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => setState(() => _controller.increment()),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () => setState(() => _controller.decrement()),
+            child: const Icon(Icons.remove),
+          ),
+          
+          const SizedBox(width: 10),
+          
+          FloatingActionButton(
+            onPressed: () => setState(() => _controller.increment()),
+            child: const Icon(Icons.add),
+          ),
+        ]
+      )
     );
   }
 }
