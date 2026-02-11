@@ -10,6 +10,16 @@ class CounterView extends StatefulWidget {
 class _CounterViewState extends State<CounterView> {
   final CounterController _controller = CounterController();
 
+  Color _getTextColor(String log) {
+    if (log.startsWith("Ditambah")) {
+      return Colors.green;
+    } else if (log.startsWith("Dikurangi")) {
+      return Colors.red;
+    } else {
+      return Colors.black;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -22,7 +32,6 @@ class _CounterViewState extends State<CounterView> {
             Text('${_controller.value}', style: const TextStyle(fontSize: 40)),
 
             const SizedBox(height: 20),
-
             const Text("Atur Langkah Hitungan:"),
             Slider(
               value: _controller.step.toDouble(),
@@ -35,11 +44,37 @@ class _CounterViewState extends State<CounterView> {
                   _controller.setStep(value.toInt());
                 });
               },
-            )
+            ),
+
+            const SizedBox(height: 20),
+            const Text("Log Aktivitas Terakhir:"),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _controller.log.length,
+                itemBuilder: (context, index) {
+                  final data = _controller.log[index];
+                  return ListTile(
+                    title: Text(
+                      data,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w300,
+                        color: _getTextColor(data),
+                        ),
+                    ),
+                    leading: Icon(
+                      Icons.history,
+                      color: _getTextColor(data),
+                      ),
+                    dense: true,
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
-      
+
       floatingActionButton: FloatingActionButton(
         onPressed: () => setState(() => _controller.increment()),
         child: const Icon(Icons.add),
