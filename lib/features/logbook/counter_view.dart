@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'counter_controller.dart';
+import 'package:logbook_app_001/features/logbook/counter_controller.dart';
+import 'package:logbook_app_001/features/onboarding/onboarding_view.dart';
 
 class CounterView extends StatefulWidget {
-  const CounterView({super.key});
+  final String username;
+  const CounterView({super.key, required this.username});
+
   @override
   State<CounterView> createState() => _CounterViewState();
 }
@@ -24,7 +27,8 @@ class _CounterViewState extends State<CounterView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("LogBook: Versi SRP"),
+        title: Text("LogBook: ${widget.username}"),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -59,12 +63,46 @@ class _CounterViewState extends State<CounterView> {
               );
             },
           ),
+
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (BuildContext conteks){
+                  return AlertDialog(
+                    title: const Text("Konfirmasi Logout"),
+                    content: const Text("Apakah Anda yakin? Data yang belum disimpan mungkin akan hilang."),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Batal"),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (context) => const OnboardingView()),
+                            (route) => false,
+                          );
+                        },
+                        child: const Text("Ya"),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }
+          ),
         ],
       ),
+
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Text("Selamat datang, ${widget.username}!"),
+            const SizedBox(height: 10),
             const Text("Total Hitungan:"),
             Text('${_controller.value}', style: const TextStyle(fontSize: 40)),
 
@@ -117,6 +155,7 @@ class _CounterViewState extends State<CounterView> {
         children: [
           FloatingActionButton(
             onPressed: () => setState(() => _controller.decrement()),
+            heroTag: "btnKurang",
             child: const Icon(Icons.remove),
           ),
 
@@ -124,6 +163,7 @@ class _CounterViewState extends State<CounterView> {
           
           FloatingActionButton(
             onPressed: () => setState(() => _controller.increment()),
+            heroTag: "btnTambah",
             child: const Icon(Icons.add),
           ),
         ]
