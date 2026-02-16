@@ -1,0 +1,4 @@
+| username | password |
+| admin	   | 123      |
+| dosen    | 456      |
+| mahasiswa| 789      |
