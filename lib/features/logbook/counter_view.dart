@@ -13,6 +13,17 @@ class CounterView extends StatefulWidget {
 class _CounterViewState extends State<CounterView> {
   final CounterController _controller = CounterController();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData(); 
+  }
+
+  Future<void> _loadInitialData() async {
+    await _controller.loadData(); 
+    setState(() {}); 
+  }
+
   Color _getTextColor(String log) {
     if (log.startsWith("Ditambah")) {
       return Colors.green;
