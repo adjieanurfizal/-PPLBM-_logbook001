@@ -34,6 +34,14 @@ class _CounterViewState extends State<CounterView> {
     }
   }
 
+  String _getGreeting() {
+    var hour = DateTime.now().hour;
+    if (hour < 11) return "Selamat Pagi";
+    if (hour < 15) return "Selamat Siang";
+    if (hour < 18) return "Selamat Sore";
+    return "Selamat Malam";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,6 +121,29 @@ class _CounterViewState extends State<CounterView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text("Selamat datang, ${widget.username}!"),
+           
+           Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.indigo.shade100),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _getGreeting(), 
+                    style: const TextStyle(fontSize: 16, color: Colors.indigo),
+                  ),
+                  Text(
+                    widget.username, 
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.indigo),
+                  ),
+                ],
+              ),
+            ),
+           
             const SizedBox(height: 10),
             const Text("Total Hitungan:"),
             Text('${_controller.value}', style: const TextStyle(fontSize: 40)),
