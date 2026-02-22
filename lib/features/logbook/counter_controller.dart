@@ -22,11 +22,13 @@ class CounterController {
   void increment(){
     _counter += _step;
     _addLog("Ditambah $_step pada ${DateTime.now().hour}:${DateTime.now().minute}, Total: $_counter");
+    saveData();
   }
 
   void decrement() { 
     if (_counter > _step) _counter -= _step; 
     _addLog("Dikurangi $_step pada ${DateTime.now().hour}:${DateTime.now().minute}, Total: $_counter");
+    saveData();
   }
 
   void reset(){
