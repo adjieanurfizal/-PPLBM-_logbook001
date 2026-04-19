@@ -44,7 +44,7 @@ class MongoService {
 
   Future<void> updateLog(LogModel log) async {
     final col = await _getSafeCollection();
-    await col.replaceOne(where.id(log.id!), log.toMap());
+    await col.replaceOne(where.id(ObjectId.fromHexString(log.id!)), log.toMap());
   }
 
   Future<void> deleteLog(ObjectId id) async {

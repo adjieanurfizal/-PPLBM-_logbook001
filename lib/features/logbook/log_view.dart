@@ -1,11 +1,10 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:logbook_app_001/features/logbook/log_controller.dart';
 import 'package:logbook_app_001/features/logbook/models/log_model.dart';
 import 'package:logbook_app_001/features/auth/login_view.dart';
-import 'package:logbook_app_001/features/logbook/widgets/log_item_widget.dart';
-import 'package:logbook_app_001/services/mongo_service.dart'; // Import service
+import 'package:logbook_app_001/services/mongo_service.dart';
+import 'package:logbook_app_001/services/access_control_service.dart'; // Gatekeeper
+import 'package:logbook_app_001/features/logbook/log_editor_page.dart'; // Editor Baru
 
 class LogView extends StatefulWidget {
   final String username;
@@ -17,209 +16,76 @@ class LogView extends StatefulWidget {
 
 class _LogViewState extends State<LogView> {
   final LogController _controller = LogController();
-
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _contentController = TextEditingController();
-  String _selectedCategory = 'Pribadi'; 
-
-  final List<String> _categories = ['Pribadi', 'Pekerjaan', 'Prioritas Tinggi', 'Lainnya'];
-  
-  // --- STATE UNTUK LOADING INTERNET ---
   bool _isLoading = true;
+
+  // --- MOCK USER UNTUK MODUL 5 ---
+  // Ubah 'role' menjadi 'Ketua' untuk melihat perbedaannya nanti!
+  final Map<String, dynamic> currentUser = {
+    'uid': 'user_123', 
+    'role': 'Anggota', 
+    'teamId': 'Kelompok_2'
+  };
 
   @override
   void initState() {
     super.initState();
-    _initCloud(); // Panggil saat aplikasi dibuka
+    _initData();
   }
 
-  // --- FUNGSI MENGHUBUNGI CLOUD ---
-  Future<void> _initCloud() async {
+  Future<void> _initData() async {
     setState(() => _isLoading = true);
     try {
-      await MongoService().connect(); // Buka koneksi MongoDB
-      await _controller.loadFromCloud(); // Ambil data
+      if (await _controller.hasInternet()) {
+        await MongoService().connect(); 
+      }
+      await _controller.syncData(); 
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal terhubung ke Cloud: $e"), backgroundColor: Colors.red),
-        );
-      }
+      // Abaikan error, kita pakai data Hive
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false); // Matikan loading apapun yang terjadi
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showAddLogDialog() {
-    _titleController.clear();
-    _contentController.clear();
-    _selectedCategory = 'Pribadi';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text("Tambah Catatan Baru"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(hintText: "Judul Catatan"),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory, // Gunakan 'value' alih-alih 'initialValue'
-                  items: _categories.map((String category) {
-                    return DropdownMenuItem(value: category, child: Text(category));
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setDialogState(() => _selectedCategory = newValue!);
-                  },
-                  decoration: const InputDecoration(labelText: "Kategori"),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _contentController,
-                  decoration: const InputDecoration(hintText: "Isi Deskripsi"),
-                  maxLines: 3,
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context), 
-                child: const Text("Batal")
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (_titleController.text.isNotEmpty && _contentController.text.isNotEmpty) {
-                    Navigator.pop(context); // Tutup dialog
-                    
-                    // Munculkan loading sementara saat menyimpan
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Menyimpan ke Cloud..."), duration: Duration(seconds: 1)),
-                    );
-                    
-                    await _controller.addLog(_titleController.text, _contentController.text, _selectedCategory);
-                  }
-                },
-                child: const Text("Simpan"),
-              ),
-            ],
-          );
-        }
+  void _openEditor({LogModel? log, int? index}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LogEditorPage(
+          log: log,
+          index: index,
+          controller: _controller,
+          currentUser: currentUser,
+        ),
       ),
     );
-  }
-
-  void _showEditLogDialog(int index, LogModel log) {
-    _titleController.text = log.title;
-    _contentController.text = log.description;
-    
-    // Pastikan kategori dari MongoDB ada di dalam list dropdown kita
-    if (_categories.contains(log.category)) {
-      _selectedCategory = log.category;
-    } else {
-      _selectedCategory = 'Lainnya'; 
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text("Edit Catatan"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: _titleController),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  items: _categories.map((String category) {
-                    return DropdownMenuItem(value: category, child: Text(category));
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setDialogState(() => _selectedCategory = newValue!);
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextField(controller: _contentController, maxLines: 3),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
-              ElevatedButton(
-                onPressed: () async {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Mengupdate Cloud..."), duration: Duration(seconds: 1)),
-                    );
-                    await _controller.updateLog(index, _titleController.text, _contentController.text, _selectedCategory);
-                },
-                child: const Text("Update"),
-              ),
-            ],
-          );
-        }
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _contentController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Logbook: ${widget.username}"),
+        title: Text("Logbook: ${widget.username} (${currentUser['role']})"),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sinkronisasi Manual',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Menyinkronkan...")));
+              _initData();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Konfirmasi Logout"),
-                  content: const Text("Apakah Anda yakin ingin keluar?"),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginView()), (route) => false);
-                      },
-                      child: const Text("Ya, Keluar", style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
+              Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginView()), (route) => false);
             },
           ),
         ],
       ),
       
-      // --- LOGIKA TAMPILAN LOADING VS DATA ---
       body: _isLoading 
-      ? const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text("Menghubungkan ke MongoDB..."),
-            ],
-          ),
-        )
+      ? const Center(child: CircularProgressIndicator())
       : Column(
         children: [
           Padding(
@@ -238,18 +104,8 @@ class _LogViewState extends State<LogView> {
             child: ValueListenableBuilder<List<LogModel>>(
               valueListenable: _controller.filteredLogs, 
               builder: (context, currentLogs, child) {
-                
                 if (currentLogs.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.cloud_off, size: 100, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text("Belum ada catatan di Cloud.", style: TextStyle(color: Colors.grey, fontSize: 18)),
-                      ],
-                    )
-                  );
+                  return const Center(child: Text("Belum ada catatan."));
                 }
 
                 return ListView.builder(
@@ -258,26 +114,34 @@ class _LogViewState extends State<LogView> {
                   itemBuilder: (context, index) {
                     final log = currentLogs[index];
                     
-                    return Dismissible(
-                      key: Key(log.id?.toHexString() ?? log.date), // Gunakan ID MongoDB sebagai Key yang unik 
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      onDismissed: (direction) async {
-                        await _controller.removeLog(index);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Catatan dihapus dari Cloud!"))
-                          );
-                        }
-                      },
-                      child: LogItemWidget(
-                        log: log,
-                        onEdit: () => _showEditLogDialog(index, log),
+                    // --- GATEKEEPER LOGIC ---
+                    bool isOwner = log.authorId == currentUser['uid'];
+                    bool canEdit = AccessControlService.canPerform(currentUser['role'], AccessControlService.actionUpdate, isOwner: isOwner);
+                    bool canDelete = AccessControlService.canPerform(currentUser['role'], AccessControlService.actionDelete, isOwner: isOwner);
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        title: Text(log.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("${log.category} • ${log.date.substring(0, 10)}\nPenulis: ${log.authorId}", maxLines: 2),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (canEdit)
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () => _openEditor(log: log, index: index),
+                              ),
+                            if (canDelete)
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  await _controller.removeLog(index);
+                                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dihapus!")));
+                                },
+                              ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -287,8 +151,9 @@ class _LogViewState extends State<LogView> {
           ),
         ],
       ),
+      
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddLogDialog,
+        onPressed: () => _openEditor(), // Buka editor baru kosong
         child: const Icon(Icons.add),
       ),
     );

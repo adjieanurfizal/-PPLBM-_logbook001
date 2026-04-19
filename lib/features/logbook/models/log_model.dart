@@ -1,35 +1,60 @@
-import 'package:mongo_dart/mongo_dart.dart';
+import 'package:hive/hive.dart';
+import 'package:mongo_dart/mongo_dart.dart' show ObjectId;
 
+part 'log_model.g.dart'; // Wajib ada untuk build_runner
+
+@HiveType(typeId: 0)
 class LogModel {
-  final ObjectId? id; 
+  @HiveField(0)
+  final String? id;
+
+  @HiveField(1)
   final String title;
+
+  @HiveField(2)
   final String description;
+
+  @HiveField(3)
   final String date;
+
+  @HiveField(4)
+  final String authorId; // Untuk mengecek siapa pemiliknya
+
+  @HiveField(5)
+  final String teamId; // Untuk memfilter grup/kelompok
+
+  @HiveField(6)
   final String category;
 
   LogModel({
-    this.id, 
-    required this.title, 
-    required this.description, 
-    required this.date, 
-    required this.category
+    this.id,
+    required this.title,
+    required this.description,
+    required this.date,
+    required this.authorId,
+    required this.teamId,
+    required this.category,
   });
 
-  factory LogModel.fromMap(Map<String, dynamic> map) {
-    return LogModel(
-      id: map['_id'] as ObjectId?,
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      date: map['date'] != null ? map['date'].toString() : DateTime.now().toString().substring(0, 16),
-      category: map['category'] ?? 'Pribadi',
-    );
-  }
-
   Map<String, dynamic> toMap() => {
-    '_id': id ?? ObjectId(), 
+    '_id': id != null ? ObjectId.fromHexString(id!) : ObjectId(),
     'title': title,
     'description': description,
     'date': date,
+    'authorId': authorId,
+    'teamId': teamId,
     'category': category,
   };
+
+  factory LogModel.fromMap(Map<String, dynamic> map) {
+    return LogModel(
+      id: (map['_id'] as ObjectId?)?.oid,
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      date: map['date'] != null ? map['date'].toString() : DateTime.now().toString().substring(0, 16),
+      authorId: map['authorId'] ?? 'unknown_user', 
+      teamId: map['teamId'] ?? 'no_team',
+      category: map['category'] ?? 'Pribadi',
+    );
+  }
 }
