@@ -1,19 +1,14 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logbook_app_001/features/logbook/models/log_model.dart';
+import 'package:logbook_app_001/services/mongo_service.dart'; // Import service cloud kita
 
 class LogController {
   final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
   final ValueNotifier<List<LogModel>> filteredLogs = ValueNotifier([]); 
 
-  static const String _storageKey = 'user_logs_data';
+  LogController(); // Tidak langsung load disk lagi, UI yang akan trigger
 
-  LogController() {
-    loadFromDisk();
-  }
-
-  // --- PENCARIAN ---
+  // --- PENCARIAN (Tetap Sama) ---
   void searchLog(String query) {
     if (query.isEmpty) {
       filteredLogs.value = logsNotifier.value;
@@ -24,8 +19,14 @@ class LogController {
     }
   }
 
-  // --- CRUD ---
-  void addLog(String title, String desc, String category) {
+  // --- CRUD CLOUD ---
+  Future<void> loadFromCloud() async {
+    final data = await MongoService().getLogs();
+    logsNotifier.value = data;
+    filteredLogs.value = data; 
+  }
+
+  Future<void> addLog(String title, String desc, String category) async {
     final newLog = LogModel(
       title: title,
       description: desc,
@@ -33,55 +34,31 @@ class LogController {
       category: category,
     );
     
-    logsNotifier.value = [...logsNotifier.value, newLog];
-    filteredLogs.value = logsNotifier.value; 
-    saveToDisk();
+    await MongoService().insertLog(newLog); // Simpan ke Cloud
+    await loadFromCloud(); // Refresh data di layar
   }
 
-  void updateLog(int index, String title, String desc, String category) {
+  Future<void> updateLog(int index, String title, String desc, String category) async {
     final targetLog = filteredLogs.value[index];
-    final realIndex = logsNotifier.value.indexOf(targetLog);
 
-    final currentLogs = List<LogModel>.from(logsNotifier.value);
-    currentLogs[realIndex] = LogModel(
+    final updatedLog = LogModel(
+      id: targetLog.id, // ID asli dari MongoDB wajib disertakan
       title: title, 
       description: desc, 
       date: DateTime.now().toString().substring(0, 16),
       category: category,
     );
     
-    logsNotifier.value = currentLogs;
-    filteredLogs.value = currentLogs; 
-    saveToDisk();
+    await MongoService().updateLog(updatedLog); // Update ke Cloud
+    await loadFromCloud(); // Refresh data di layar
   }
 
-  void removeLog(int index) {
+  Future<void> removeLog(int index) async {
     final targetLog = filteredLogs.value[index];
-    final realIndex = logsNotifier.value.indexOf(targetLog);
-
-    final currentLogs = List<LogModel>.from(logsNotifier.value);
-    currentLogs.removeAt(realIndex);
     
-    logsNotifier.value = currentLogs;
-    filteredLogs.value = currentLogs; 
-    saveToDisk();
-  }
-
-  // --- PENYIMPANAN ---
-  Future<void> saveToDisk() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encodedData = jsonEncode(logsNotifier.value.map((e) => e.toMap()).toList());
-    await prefs.setString(_storageKey, encodedData);
-  }
-
-  Future<void> loadFromDisk() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? data = prefs.getString(_storageKey);
-    
-    if (data != null) {
-      final List decoded = jsonDecode(data);
-      logsNotifier.value = decoded.map((e) => LogModel.fromMap(e)).toList();
-      filteredLogs.value = logsNotifier.value; 
+    if (targetLog.id != null) {
+      await MongoService().deleteLog(targetLog.id!); // Hapus di Cloud
+      await loadFromCloud(); // Refresh data di layar
     }
   }
 }

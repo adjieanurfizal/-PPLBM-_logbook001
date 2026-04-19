@@ -1,8 +1,11 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:logbook_app_001/features/logbook/log_controller.dart';
 import 'package:logbook_app_001/features/logbook/models/log_model.dart';
 import 'package:logbook_app_001/features/auth/login_view.dart';
 import 'package:logbook_app_001/features/logbook/widgets/log_item_widget.dart';
+import 'package:logbook_app_001/services/mongo_service.dart'; // Import service
 
 class LogView extends StatefulWidget {
   final String username;
@@ -20,6 +23,34 @@ class _LogViewState extends State<LogView> {
   String _selectedCategory = 'Pribadi'; 
 
   final List<String> _categories = ['Pribadi', 'Pekerjaan', 'Prioritas Tinggi', 'Lainnya'];
+  
+  // --- STATE UNTUK LOADING INTERNET ---
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCloud(); // Panggil saat aplikasi dibuka
+  }
+
+  // --- FUNGSI MENGHUBUNGI CLOUD ---
+  Future<void> _initCloud() async {
+    setState(() => _isLoading = true);
+    try {
+      await MongoService().connect(); // Buka koneksi MongoDB
+      await _controller.loadFromCloud(); // Ambil data
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal terhubung ke Cloud: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false); // Matikan loading apapun yang terjadi
+      }
+    }
+  }
 
   void _showAddLogDialog() {
     _titleController.clear();
@@ -41,7 +72,7 @@ class _LogViewState extends State<LogView> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedCategory,
+                  value: _selectedCategory, // Gunakan 'value' alih-alih 'initialValue'
                   items: _categories.map((String category) {
                     return DropdownMenuItem(value: category, child: Text(category));
                   }).toList(),
@@ -64,10 +95,16 @@ class _LogViewState extends State<LogView> {
                 child: const Text("Batal")
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_titleController.text.isNotEmpty && _contentController.text.isNotEmpty) {
-                    _controller.addLog(_titleController.text, _contentController.text, _selectedCategory);
-                    Navigator.pop(context); 
+                    Navigator.pop(context); // Tutup dialog
+                    
+                    // Munculkan loading sementara saat menyimpan
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Menyimpan ke Cloud..."), duration: Duration(seconds: 1)),
+                    );
+                    
+                    await _controller.addLog(_titleController.text, _contentController.text, _selectedCategory);
                   }
                 },
                 child: const Text("Simpan"),
@@ -82,7 +119,13 @@ class _LogViewState extends State<LogView> {
   void _showEditLogDialog(int index, LogModel log) {
     _titleController.text = log.title;
     _contentController.text = log.description;
-    _selectedCategory = log.category;
+    
+    // Pastikan kategori dari MongoDB ada di dalam list dropdown kita
+    if (_categories.contains(log.category)) {
+      _selectedCategory = log.category;
+    } else {
+      _selectedCategory = 'Lainnya'; 
+    }
 
     showDialog(
       context: context,
@@ -96,7 +139,7 @@ class _LogViewState extends State<LogView> {
                 TextField(controller: _titleController),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedCategory,
+                  value: _selectedCategory,
                   items: _categories.map((String category) {
                     return DropdownMenuItem(value: category, child: Text(category));
                   }).toList(),
@@ -111,9 +154,12 @@ class _LogViewState extends State<LogView> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
               ElevatedButton(
-                onPressed: () {
-                    _controller.updateLog(index, _titleController.text, _contentController.text, _selectedCategory);
+                onPressed: () async {
                     Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Mengupdate Cloud..."), duration: Duration(seconds: 1)),
+                    );
+                    await _controller.updateLog(index, _titleController.text, _contentController.text, _selectedCategory);
                 },
                 child: const Text("Update"),
               ),
@@ -161,9 +207,21 @@ class _LogViewState extends State<LogView> {
           ),
         ],
       ),
-      body: Column(
+      
+      // --- LOGIKA TAMPILAN LOADING VS DATA ---
+      body: _isLoading 
+      ? const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text("Menghubungkan ke MongoDB..."),
+            ],
+          ),
+        )
+      : Column(
         children: [
-          // --- KOLOM PENCARIAN ---
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
@@ -181,15 +239,14 @@ class _LogViewState extends State<LogView> {
               valueListenable: _controller.filteredLogs, 
               builder: (context, currentLogs, child) {
                 
-                // --- EMPTY STATE ---
                 if (currentLogs.isEmpty) {
                   return const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.inbox_outlined, size: 100, color: Colors.grey),
+                        Icon(Icons.cloud_off, size: 100, color: Colors.grey),
                         SizedBox(height: 16),
-                        Text("Yahh, catatan kamu kosong :(", style: TextStyle(color: Colors.grey, fontSize: 18)),
+                        Text("Belum ada catatan di Cloud.", style: TextStyle(color: Colors.grey, fontSize: 18)),
                       ],
                     )
                   );
@@ -202,7 +259,7 @@ class _LogViewState extends State<LogView> {
                     final log = currentLogs[index];
                     
                     return Dismissible(
-                      key: Key(log.date), 
+                      key: Key(log.id?.toHexString() ?? log.date), // Gunakan ID MongoDB sebagai Key yang unik 
                       direction: DismissDirection.endToStart,
                       background: Container(
                         color: Colors.red,
@@ -210,11 +267,13 @@ class _LogViewState extends State<LogView> {
                         padding: const EdgeInsets.only(right: 20),
                         child: const Icon(Icons.delete, color: Colors.white),
                       ),
-                      onDismissed: (direction) {
-                        _controller.removeLog(index);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Catatan dihapus!"))
-                        );
+                      onDismissed: (direction) async {
+                        await _controller.removeLog(index);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Catatan dihapus dari Cloud!"))
+                          );
+                        }
                       },
                       child: LogItemWidget(
                         log: log,
